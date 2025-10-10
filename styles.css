@@ -33,11 +33,6 @@ img {
   display: block;
 }
 
-p {
-  margin: 0 0 1rem;
-  text-align: justify;
-}
-
 .container {
   width: var(--container-width);
   margin: 0 auto;
