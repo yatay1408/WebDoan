@@ -6,7 +6,7 @@
   const modal = document.getElementById('documentModal');
   const modalViewer = document.getElementById('modalViewer');
   const modalCloseTargets = modal ? modal.querySelectorAll('[data-close="true"]') : [];
-  const documentButtons = document.querySelectorAll('[data-pdf]');
+  const documentTriggers = document.querySelectorAll('[data-pdf]');
   const body = document.body;
 
   const openModal = (pdfUrl) => {
@@ -29,10 +29,17 @@
     body.style.overflow = '';
   };
 
-  documentButtons.forEach((button) => {
-    button.addEventListener('click', () => {
-      const pdfUrl = button.getAttribute('data-pdf');
-      if (!pdfUrl) return;
+  documentTriggers.forEach((trigger) => {
+    trigger.addEventListener('click', (event) => {
+      const pdfUrl = trigger.getAttribute('data-pdf') || trigger.getAttribute('href');
+      if (!pdfUrl) {
+        return;
+      }
+
+      if (event) {
+        event.preventDefault();
+      }
+
       openModal(pdfUrl);
     });
   });
