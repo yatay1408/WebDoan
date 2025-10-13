@@ -1,42 +1,23 @@
 # Đại hội Đoàn Trung tâm 386 (2025-2030)
 
-Trang web giới thiệu văn kiện Đại hội, kèm hệ thống thu nhận ý kiến có lưu trữ cơ sở dữ liệu để Ban Tổ chức tổng hợp.
+Trang web tĩnh dùng để trình bày các văn kiện Đại hội và thu thập ý kiến đóng góp ẩn danh.
 
 ## Cấu trúc dự án
 
-- `index.html`: Trang chủ với khu vực giới thiệu, danh sách văn kiện và biểu mẫu góp ý có trường họ tên, đơn vị.
+- `index.html`: Trang chủ với khu vực giới thiệu, danh sách văn kiện và biểu mẫu góp ý.
 - `styles.css`: Toàn bộ định dạng giao diện với tông màu xanh Đoàn.
-- `script.js`: Điều khiển tương tác mở tài liệu PDF và đồng bộ ý kiến với API backend.
-- `server.js`: Máy chủ HTTP thuần Node phục vụ nội dung tĩnh và cung cấp API ghi/lấy ý kiến.
-- `data/`: Thư mục chứa cơ sở dữ liệu `feedbacks.json` (tự động tạo khi chạy server).
+- `script.js`: Điều khiển tương tác mở tài liệu PDF và lưu ý kiến vào bộ nhớ trình duyệt.
 - `assets/`: Lưu logo và các tập tin PDF mẫu.
-
-## Chuẩn bị môi trường
-
-Máy chủ yêu cầu Node.js >= 18 (không cần cài thêm thư viện ngoài).
 
 ## Chạy dự án cục bộ
 
-Chạy máy chủ Node phục vụ website và API cơ sở dữ liệu:
+Vì đây là trang web tĩnh, bạn có thể mở trực tiếp `index.html` bằng trình duyệt. Để thuận tiện hơn, hãy chạy một máy chủ HTTP đơn giản:
 
 ```bash
-npm start
+python -m http.server 8000
 ```
 
-Server sẽ lắng nghe tại `http://localhost:3000`. Truy cập địa chỉ này để xem trang web và gửi ý kiến.
-
-### Kiểm tra nhanh
-
-Lệnh sau giúp kiểm tra cú pháp máy chủ:
-
-```bash
-npm test
-```
-
-## API góp ý
-
-- `GET /api/feedback`: Trả về danh sách ý kiến (mới nhất lên trước).
-- `POST /api/feedback`: Nhận payload JSON `{ "name": "...", "unit": "...", "message": "..." }` và lưu vào tệp cơ sở dữ liệu.
+Sau đó truy cập `http://localhost:8000` và mở thư mục dự án để xem trang web.
 
 ## Đưa dự án lên GitHub
 
@@ -51,7 +32,6 @@ npm test
    ```
 4. (Tuỳ chọn) Bật GitHub Pages tại phần **Settings → Pages**, chọn nhánh `work` (hoặc `main` sau khi hợp nhất) và thư mục gốc.
 5. Chờ GitHub xây dựng rồi truy cập URL mà GitHub Pages cung cấp để xem trang web trực tuyến.
-   > Lưu ý: API góp ý cần chạy Node server nên không hoạt động trên GitHub Pages tĩnh. Hãy triển khai riêng (ví dụ Render, Railway...).
 
 ## Đóng góp
 
