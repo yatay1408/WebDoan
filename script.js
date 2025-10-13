@@ -1,5 +1,3 @@
-document.documentElement.classList.add('js-enabled');
-
 const modal = document.getElementById('documentModal');
 const modalViewer = document.getElementById('modalViewer');
 const modalCloseTargets = modal.querySelectorAll('[data-close="true"]');
@@ -43,86 +41,6 @@ modal.addEventListener('click', (event) => {
     closeModal();
   }
 });
-
-// Document carousel handling
-const carousel = document.querySelector('.documents__list');
-const slides = carousel ? Array.from(carousel.querySelectorAll('.documents__item')) : [];
-const prevControl = document.querySelector('.documents__nav--prev');
-const nextControl = document.querySelector('.documents__nav--next');
-const statusLabel = document.querySelector('.documents__status');
-const dotButtons = Array.from(document.querySelectorAll('.documents__dot'));
-
-if (carousel && slides.length > 0) {
-  let activeIndex = slides.findIndex((slide) => slide.classList.contains('is-active'));
-  if (activeIndex === -1) {
-    activeIndex = 0;
-  }
-
-  const totalSlides = slides.length;
-
-  const updateSlides = (index) => {
-    activeIndex = (index + totalSlides) % totalSlides;
-    const offset = -(activeIndex * 100);
-    carousel.style.transform = `translateX(${offset}%)`;
-
-    slides.forEach((slide, slideIndex) => {
-      const isActive = slideIndex === activeIndex;
-      slide.classList.toggle('is-active', isActive);
-      slide.setAttribute('aria-hidden', String(!isActive));
-      const article = slide.querySelector('[aria-roledescription="slide"]');
-      if (article) {
-        const title = article.dataset.title ? `${article.dataset.title.trim()} ` : '';
-        article.setAttribute('aria-label', `${title}(${slideIndex + 1} / ${totalSlides})`);
-      }
-    });
-
-    if (statusLabel) {
-      statusLabel.textContent = `${activeIndex + 1} / ${totalSlides}`;
-    }
-
-    dotButtons.forEach((dot, dotIndex) => {
-      const isActive = dotIndex === activeIndex;
-      dot.classList.toggle('is-active', isActive);
-      dot.setAttribute('aria-selected', String(isActive));
-      dot.setAttribute('tabindex', isActive ? '0' : '-1');
-    });
-  };
-
-  updateSlides(activeIndex);
-
-  if (prevControl) {
-    prevControl.addEventListener('click', () => {
-      updateSlides(activeIndex - 1);
-    });
-  }
-
-  if (nextControl) {
-    nextControl.addEventListener('click', () => {
-      updateSlides(activeIndex + 1);
-    });
-  }
-
-  dotButtons.forEach((dot, dotIndex) => {
-    dot.addEventListener('click', () => {
-      updateSlides(dotIndex);
-    });
-  });
-
-  const documentsSection = document.getElementById('documents');
-  if (documentsSection) {
-    documentsSection.addEventListener('keydown', (event) => {
-      if (event.key === 'ArrowRight') {
-        event.preventDefault();
-        updateSlides(activeIndex + 1);
-      }
-
-      if (event.key === 'ArrowLeft') {
-        event.preventDefault();
-        updateSlides(activeIndex - 1);
-      }
-    });
-  }
-}
 
 // Feedback handling
 const feedbackForm = document.getElementById('feedbackForm');
