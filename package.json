@@ -1,17 +1,24 @@
 {
-  "name": "dai-hoi-doan-386",
+  "name": "webdoan",
   "version": "1.0.0",
-  "description": "Website văn kiện Đại hội Đoàn Trung tâm 386 với API góp ý lưu trữ tệp",
+  "description": "Trang thông tin Đại hội Đoàn cơ sở Trung tâm 386",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --check server.js"
+    "dev": "nodemon server.js",
+    "test": "node -e \"console.log('No automated tests configured')\""
   },
   "keywords": [
     "doan",
-    "van-kien",
+    "dai-hoi",
     "feedback"
   ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
 }
