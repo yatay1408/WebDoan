@@ -1,3 +1,28 @@
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  serverTimestamp,
+  query,
+  orderBy,
+  getDocs,
+  getDoc
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+let firebaseConfig = null;
+let feedbackCollectionName = 'feedbacks';
+
+try {
+  const configModule = await import('./feedback-config.js');
+  firebaseConfig = configModule.firebaseConfig || null;
+  if (configModule.feedbackCollection) {
+    feedbackCollectionName = configModule.feedbackCollection;
+  }
+} catch (error) {
+  console.warn('Không tìm thấy file cấu hình Firebase (feedback-config.js).', error);
+}
+
 document.documentElement.classList.add('js-enabled');
 
 const modal = document.getElementById('documentModal');
@@ -132,7 +157,6 @@ const feedbackContent = document.getElementById('feedbackContent');
 const feedbackMessage = document.querySelector('.feedback__message');
 const feedbackList = document.getElementById('feedbackList');
 
-const FEEDBACK_API = '/api/feedback';
 let feedbackItems = [];
 
 const setFeedbackMessage = (text, tone = 'info') => {
@@ -147,15 +171,21 @@ const setFeedbackMessage = (text, tone = 'info') => {
   }
 };
 
+const showFeedbackListMessage = (text) => {
+  if (!feedbackList) return;
+  feedbackList.innerHTML = '';
+  const messageItem = document.createElement('li');
+  messageItem.textContent = text;
+  messageItem.className = 'feedback__item feedback__item--empty';
+  feedbackList.appendChild(messageItem);
+};
+
 const renderFeedbackList = () => {
   if (!feedbackList) return;
   feedbackList.innerHTML = '';
 
   if (!feedbackItems.length) {
-    const emptyMessage = document.createElement('li');
-    emptyMessage.textContent = 'Chưa có ý kiến nào. Hãy là người đầu tiên đóng góp!';
-    emptyMessage.className = 'feedback__item feedback__item--empty';
-    feedbackList.appendChild(emptyMessage);
+    showFeedbackListMessage('Chưa có ý kiến nào. Hãy là người đầu tiên đóng góp!');
     return;
   }
 
@@ -187,50 +217,115 @@ const renderFeedbackList = () => {
   });
 };
 
-const parseFeedback = (row) => ({
-  id: row.id,
-  name: row.name,
-  unit: row.unit,
-  message: row.message,
-  recordedAt: new Intl.DateTimeFormat('vi-VN', {
+const toDate = (value) => {
+  if (!value) {
+    return new Date();
+  }
+
+  if (value instanceof Date) {
+    return value;
+  }
+
+  if (typeof value.toDate === 'function') {
+    return value.toDate();
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date();
+  }
+  return parsed;
+};
+
+const formatRecordedAt = (date) =>
+  new Intl.DateTimeFormat('vi-VN', {
     dateStyle: 'medium',
     timeStyle: 'short'
-  }).format(new Date(row.createdAt))
+  }).format(date);
+
+const mapFeedbackDoc = (id, data = {}) => ({
+  id,
+  name: data.name || 'Ẩn danh',
+  unit: data.unit || 'Chưa rõ đơn vị',
+  message: data.message || '',
+  recordedAt: formatRecordedAt(toDate(data.createdAt))
 });
 
-const loadFeedbacks = async () => {
-  if (!feedbackList) return;
-  feedbackList.innerHTML = '';
-  const loading = document.createElement('li');
-  loading.textContent = 'Đang tải ý kiến đã gửi...';
-  loading.className = 'feedback__item feedback__item--empty';
-  feedbackList.appendChild(loading);
+const loadFeedbacksFromFirestore = async (database) => {
+  const feedbackQuery = query(collection(database, feedbackCollectionName), orderBy('createdAt', 'desc'));
+  const snapshot = await getDocs(feedbackQuery);
+  return snapshot.docs.map((doc) => mapFeedbackDoc(doc.id, doc.data()));
+};
+
+const submitFeedbackToFirestore = async (database, payload) => {
+  const docRef = await addDoc(collection(database, feedbackCollectionName), {
+    ...payload,
+    createdAt: serverTimestamp()
+  });
+  const savedSnapshot = await getDoc(docRef);
+
+  if (savedSnapshot.exists()) {
+    return mapFeedbackDoc(savedSnapshot.id, savedSnapshot.data());
+  }
+
+  return mapFeedbackDoc(docRef.id, {
+    ...payload,
+    createdAt: new Date()
+  });
+};
+
+const isFirebaseConfigReady = (config) => {
+  if (!config || typeof config !== 'object') {
+    return false;
+  }
+  const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'appId'];
+  return requiredKeys.every((key) => {
+    const value = config[key];
+    return typeof value === 'string' && value.trim() && !value.includes('YOUR_FIREBASE_');
+  });
+};
+
+const disableFeedbackForm = (message) => {
+  setFeedbackMessage(message, 'error');
+  showFeedbackListMessage(message);
+  if (feedbackForm) {
+    feedbackForm.querySelectorAll('input, textarea, button').forEach((element) => {
+      element.disabled = true;
+    });
+  }
+};
+
+const initFeedbackFeature = async () => {
+  if (!feedbackForm) {
+    return;
+  }
+
+  if (!isFirebaseConfigReady(firebaseConfig)) {
+    disableFeedbackForm('Hệ thống góp ý chưa được cấu hình. Vui lòng cập nhật thông tin Firebase.');
+    return;
+  }
+
+  let firebaseApp;
+  try {
+    firebaseApp = initializeApp(firebaseConfig);
+  } catch (error) {
+    console.error(error);
+    disableFeedbackForm('Không thể khởi tạo kết nối tới dịch vụ lưu trữ ý kiến.');
+    return;
+  }
+
+  const database = getFirestore(firebaseApp);
+  showFeedbackListMessage('Đang tải ý kiến đã gửi...');
 
   try {
-    const response = await fetch(FEEDBACK_API, { headers: { Accept: 'application/json' } });
-    if (!response.ok) {
-      throw new Error('Không thể tải danh sách');
-    }
-    const data = await response.json();
-    if (!Array.isArray(data)) {
-      throw new Error('Dữ liệu không hợp lệ');
-    }
-    feedbackItems = data.map(parseFeedback);
+    feedbackItems = await loadFeedbacksFromFirestore(database);
     renderFeedbackList();
     setFeedbackMessage('Hãy chia sẻ ý kiến của bạn để Ban Tổ chức kịp thời ghi nhận.');
   } catch (error) {
     console.error(error);
     setFeedbackMessage('Không thể tải danh sách ý kiến. Vui lòng thử lại sau.', 'error');
-    feedbackList.innerHTML = '';
-    const fail = document.createElement('li');
-    fail.className = 'feedback__item feedback__item--empty';
-    fail.textContent = 'Không thể tải danh sách ý kiến.';
-    feedbackList.appendChild(fail);
+    showFeedbackListMessage('Không thể tải danh sách ý kiến.');
   }
-};
-
-if (feedbackForm) {
-  loadFeedbacks();
 
   feedbackForm.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -264,29 +359,18 @@ if (feedbackForm) {
     }
 
     try {
-      const response = await fetch(FEEDBACK_API, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json'
-        },
-        body: JSON.stringify({ name, unit, message })
+      const savedFeedback = await submitFeedbackToFirestore(database, {
+        name,
+        unit,
+        message
       });
-
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        const message = errorBody.error || 'Không thể gửi ý kiến. Vui lòng thử lại.';
-        throw new Error(message);
-      }
-
-      const saved = await response.json();
-      feedbackItems = [parseFeedback(saved), ...feedbackItems];
+      feedbackItems = [savedFeedback, ...feedbackItems];
       renderFeedbackList();
       feedbackForm.reset();
       setFeedbackMessage('Cảm ơn bạn! Ý kiến đã được ghi nhận vào hệ thống.', 'success');
     } catch (error) {
       console.error(error);
-      setFeedbackMessage(error.message || 'Không thể gửi ý kiến. Vui lòng thử lại.', 'error');
+      setFeedbackMessage('Không thể gửi ý kiến. Vui lòng thử lại.', 'error');
     } finally {
       if (submitButton) {
         submitButton.disabled = false;
@@ -294,4 +378,6 @@ if (feedbackForm) {
       }
     }
   });
-}
+};
+
+initFeedbackFeature();
