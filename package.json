@@ -1,0 +1,17 @@
+{
+  "name": "dai-hoi-doan-386",
+  "version": "1.0.0",
+  "description": "Website văn kiện Đại hội Đoàn Trung tâm 386 với API góp ý lưu trữ tệp",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --check server.js"
+  },
+  "keywords": [
+    "doan",
+    "van-kien",
+    "feedback"
+  ],
+  "author": "",
+  "license": "MIT"
+}
