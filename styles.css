@@ -117,7 +117,7 @@ p {
 
 .hero__subtitle {
   margin: 0;
-  font-size: clamp(1rem, 2.8vw, 1.9rem);
+  font-size: clamp(0.84rem, 1.96vw, 1.33rem);
   font-weight: 600;
   line-height: 1.1;
   letter-spacing: 1.1px;
@@ -126,7 +126,7 @@ p {
 
 .hero__title {
   margin: 0;
-  font-size: clamp(1.35rem, 3vw, 2.1rem);
+  font-size: clamp(0.945rem, 2.1vw, 1.47rem);
   font-weight: 700;
   line-height: 1.12;
   letter-spacing: 0.6px;
@@ -246,6 +246,11 @@ p {
   gap: 2.5rem;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   align-items: start;
+}
+
+.about__motto {
+  font-size: clamp(0.98rem, 2.1vw, 1.4rem);
+  line-height: 1.35;
 }
 
 .about__highlight {
