@@ -7,7 +7,32 @@
   const modalViewer = document.getElementById('modalViewer');
   const modalCloseTargets = modal ? modal.querySelectorAll('[data-close="true"]') : [];
   const documentTriggers = document.querySelectorAll('[data-pdf]');
+  const mobileQuery = window.matchMedia('(max-width: 767px)');
   const body = document.body;
+
+  const isDesktopViewport = () => !mobileQuery.matches;
+
+  const forceDownload = (pdfUrl) => {
+    const link = document.createElement('a');
+    link.href = pdfUrl;
+    link.setAttribute('download', pdfUrl.split('/').pop() || 'document.pdf');
+    link.rel = 'noopener';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  const updateTriggerDownloadAttribute = () => {
+    const useModal = isDesktopViewport();
+    documentTriggers.forEach((trigger) => {
+      if (useModal) {
+        trigger.removeAttribute('download');
+      } else {
+        trigger.setAttribute('download', '');
+      }
+    });
+  };
 
   const openModal = (pdfUrl) => {
     if (!modal || !modalViewer) {
@@ -36,11 +61,18 @@
         return;
       }
 
+      if (isDesktopViewport()) {
+        if (event) {
+          event.preventDefault();
+        }
+        openModal(pdfUrl);
+        return;
+      }
+
       if (event) {
         event.preventDefault();
       }
-
-      openModal(pdfUrl);
+      forceDownload(pdfUrl);
     });
   });
 
@@ -242,6 +274,13 @@
       }
     });
   };
+
+  updateTriggerDownloadAttribute();
+  if (typeof mobileQuery.addEventListener === 'function') {
+    mobileQuery.addEventListener('change', updateTriggerDownloadAttribute);
+  } else if (typeof mobileQuery.addListener === 'function') {
+    mobileQuery.addListener(updateTriggerDownloadAttribute);
+  }
 
   initFeedbackFeature();
 })();
