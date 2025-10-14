@@ -528,6 +528,7 @@ textarea:focus {
   z-index: 1000;
   display: grid;
   place-items: center;
+  padding: clamp(1rem, 4vw, 2rem);
 }
 
 .modal__backdrop {
@@ -539,9 +540,10 @@ textarea:focus {
 
 .modal__content {
   position: relative;
-  width: min(960px, 92vw);
+  width: min(960px, 100%);
+  max-height: min(720px, calc(100vh - 2rem));
   background: var(--color-white);
-  border-radius: 1.5rem;
+  border-radius: clamp(1rem, 2vw, 1.5rem);
   overflow: hidden;
   box-shadow: 0 30px 60px rgba(0, 40, 80, 0.35);
   display: flex;
@@ -567,15 +569,23 @@ textarea:focus {
 }
 
 .modal__body {
-  height: min(70vh, 640px);
+  flex: 1 1 auto;
+  min-height: 0;
   background: #0b1f38;
 }
 
 .modal__body iframe {
+  display: block;
   width: 100%;
   height: 100%;
   border: none;
   background: #ffffff;
+}
+
+@supports (height: 100dvh) {
+  .modal__content {
+    max-height: min(720px, calc(100dvh - 2rem));
+  }
 }
 
 @media (max-width: 640px) {
