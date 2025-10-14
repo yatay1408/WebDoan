@@ -1,286 +1,184 @@
-(() => {
-  'use strict';
+const express = require('express');
+const path = require('path');
+const fs = require('fs/promises');
 
-  document.documentElement.classList.add('js-enabled');
+const app = express();
+const PORT = process.env.PORT || 3000;
+const FEEDBACK_FILE = path.join(__dirname, 'ykien.txt');
+const ENTRY_START = '===YK_START===';
+const ENTRY_END = '===YK_END===';
 
-  const modal = document.getElementById('documentModal');
-  const modalViewer = document.getElementById('modalViewer');
-  const modalCloseTargets = modal ? modal.querySelectorAll('[data-close="true"]') : [];
-  const documentTriggers = document.querySelectorAll('[data-pdf]');
-  const mobileQuery = window.matchMedia('(max-width: 767px)');
-  const body = document.body;
-
-  const isDesktopViewport = () => !mobileQuery.matches;
-
-  const forceDownload = (pdfUrl) => {
-    const link = document.createElement('a');
-    link.href = pdfUrl;
-    link.setAttribute('download', pdfUrl.split('/').pop() || 'document.pdf');
-    link.rel = 'noopener';
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  };
-
-  const updateTriggerDownloadAttribute = () => {
-    const useModal = isDesktopViewport();
-    documentTriggers.forEach((trigger) => {
-      if (useModal) {
-        trigger.removeAttribute('download');
-      } else {
-        trigger.setAttribute('download', '');
-      }
-    });
-  };
-
-  const openModal = (pdfUrl) => {
-    if (!modal || !modalViewer) {
-      window.open(pdfUrl, '_blank');
-      return;
-    }
-
-    modalViewer.src = pdfUrl;
-    modal.removeAttribute('hidden');
-    body.style.overflow = 'hidden';
-  };
-
-  const closeModal = () => {
-    if (!modal || !modalViewer) {
-      return;
-    }
-    modalViewer.src = '';
-    modal.setAttribute('hidden', '');
-    body.style.overflow = '';
-  };
-
-  documentTriggers.forEach((trigger) => {
-    trigger.addEventListener('click', (event) => {
-      const pdfUrl = trigger.getAttribute('data-pdf') || trigger.getAttribute('href');
-      if (!pdfUrl) {
-        return;
-      }
-
-      if (isDesktopViewport()) {
-        if (event) {
-          event.preventDefault();
-        }
-        openModal(pdfUrl);
-        return;
-      }
-
-      if (event) {
-        event.preventDefault();
-      }
-      forceDownload(pdfUrl);
-    });
-  });
-
-  modalCloseTargets.forEach((element) => {
-    element.addEventListener('click', (event) => {
-      event.preventDefault();
-      closeModal();
-    });
-  });
-
-  window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && modal && !modal.hasAttribute('hidden')) {
-      closeModal();
-    }
-  });
-
-  if (modal) {
-    modal.addEventListener('click', (event) => {
-      if (event.target instanceof HTMLElement && event.target.dataset.close === 'true') {
-        closeModal();
-      }
-    });
+const ensureFeedbackFile = async () => {
+  try {
+    await fs.access(FEEDBACK_FILE);
+  } catch (error) {
+    await fs.writeFile(FEEDBACK_FILE, '', 'utf8');
   }
+};
 
-  // Feedback handling
-  const feedbackForm = document.getElementById('feedbackForm');
-  const feedbackName = document.getElementById('feedbackName');
-  const feedbackUnit = document.getElementById('feedbackUnit');
-  const feedbackContent = document.getElementById('feedbackContent');
-  const feedbackMessage = document.querySelector('.feedback__message');
-  const feedbackList = document.getElementById('feedbackList');
-  const FEEDBACK_ENDPOINT = '/api/feedbacks';
+const parseFeedbackBlocks = (raw) => {
+  const segments = raw.split(ENTRY_START);
+  const records = [];
 
-  let feedbackItems = [];
-
-  const setFeedbackMessage = (text, tone = 'info') => {
-    if (!feedbackMessage) return;
-    feedbackMessage.textContent = text;
-
-    if (tone === 'error') {
-      feedbackMessage.style.color = '#ffd166';
-    } else if (tone === 'success') {
-      feedbackMessage.style.color = '#b7f8c8';
-    } else {
-      feedbackMessage.style.color = '#ffffff';
-    }
-  };
-
-  const showFeedbackListMessage = (text) => {
-    if (!feedbackList) return;
-    feedbackList.innerHTML = '';
-    const messageItem = document.createElement('li');
-    messageItem.textContent = text;
-    messageItem.className = 'feedback__item feedback__item--empty';
-    feedbackList.appendChild(messageItem);
-  };
-
-  const renderFeedbackList = () => {
-    if (!feedbackList) return;
-    feedbackList.innerHTML = '';
-
-    if (!feedbackItems.length) {
-      showFeedbackListMessage('Chưa có ý kiến nào. Hãy là người đầu tiên đóng góp!');
+  segments.forEach((segment) => {
+    const trimmed = segment.trim();
+    if (!trimmed) {
       return;
     }
 
-    feedbackItems.forEach((item) => {
-      const li = document.createElement('li');
-      li.className = 'feedback__item';
-
-      const identity = document.createElement('div');
-      identity.className = 'feedback__meta';
-
-      const nameEl = document.createElement('p');
-      nameEl.className = 'feedback__identity';
-      nameEl.textContent = `${item.name} · ${item.unit}`;
-
-      const time = document.createElement('span');
-      time.textContent = item.recordedAt;
-      time.className = 'feedback__time';
-
-      identity.appendChild(nameEl);
-      identity.appendChild(time);
-
-      const content = document.createElement('p');
-      content.textContent = item.message;
-      content.style.margin = '0';
-
-      li.appendChild(identity);
-      li.appendChild(content);
-      feedbackList.appendChild(li);
-    });
-  };
-
-  const disableFeedbackForm = (message) => {
-    setFeedbackMessage(message, 'error');
-    showFeedbackListMessage(message);
-    if (!feedbackForm) return;
-    feedbackForm.querySelectorAll('input, textarea, button').forEach((element) => {
-      element.disabled = true;
-    });
-  };
-
-  const fetchFeedbacks = async () => {
-    if (!feedbackForm) return;
-
-    showFeedbackListMessage('Đang tải ý kiến đã gửi...');
-
-    try {
-      const response = await fetch(FEEDBACK_ENDPOINT, { cache: 'no-store' });
-      if (!response.ok) {
-        throw new Error(`Failed to load feedbacks: ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (Array.isArray(data)) {
-        feedbackItems = data;
-      } else {
-        feedbackItems = [];
-      }
-      renderFeedbackList();
-      setFeedbackMessage('Hãy chia sẻ ý kiến của bạn để Ban Tổ chức kịp thời ghi nhận.');
-    } catch (error) {
-      console.error(error);
-      disableFeedbackForm('Không thể truy cập file góp ý. Vui lòng chạy tiến trình đọc/ghi ykien.txt (node server.js).');
-    }
-  };
-
-  const submitFeedback = async (payload) => {
-    const response = await fetch(FEEDBACK_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      const message = errorData.message || 'Không thể gửi ý kiến. Vui lòng thử lại.';
-      throw new Error(message);
-    }
-
-    return response.json();
-  };
-
-  const initFeedbackFeature = () => {
-    if (!feedbackForm) {
+    const [content] = trimmed.split(ENTRY_END);
+    if (!content) {
       return;
     }
 
-    fetchFeedbacks();
+    const lines = content
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
 
-    feedbackForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-
-      const name = feedbackName.value.trim();
-      const unit = feedbackUnit.value.trim();
-      const message = feedbackContent.value.trim();
-
-      if (name.length < 3) {
-        setFeedbackMessage('Vui lòng nhập họ và tên (tối thiểu 3 ký tự).', 'error');
-        feedbackName.focus();
+    const record = {};
+    lines.forEach((line) => {
+      const [key, ...rest] = line.split(':');
+      if (!key || rest.length === 0) {
         return;
       }
 
-      if (unit.length < 3) {
-        setFeedbackMessage('Vui lòng nhập tên đơn vị đầy đủ.', 'error');
-        feedbackUnit.focus();
-        return;
-      }
+      const value = rest.join(':').trim();
 
-      if (message.length < 10) {
-        setFeedbackMessage('Vui lòng nhập ý kiến chi tiết hơn (tối thiểu 10 ký tự).', 'error');
-        feedbackContent.focus();
-        return;
+      switch (key) {
+        case 'name':
+          record.name = value;
+          break;
+        case 'unit':
+          record.unit = value;
+          break;
+        case 'message':
+          record.message = value;
+          break;
+        case 'recordedAt':
+          record.recordedAt = value;
+          break;
+        case 'id':
+          record.id = value;
+          break;
+        default:
+          break;
       }
+    });
 
-      const submitButton = feedbackForm.querySelector('button[type="submit"]');
-      if (submitButton) {
-        submitButton.disabled = true;
-        submitButton.textContent = 'Đang gửi...';
+    if (record.name && record.unit && record.message && record.recordedAt) {
+      if (!record.id) {
+        record.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
       }
+      records.push(record);
+    }
+  });
 
+  return records.reverse();
+};
+
+const parseJsonLines = (raw) =>
+  raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
       try {
-        const savedFeedback = await submitFeedback({ name, unit, message });
-        feedbackItems = [savedFeedback, ...feedbackItems];
-        renderFeedbackList();
-        feedbackForm.reset();
-        setFeedbackMessage('Cảm ơn bạn! Ý kiến đã được ghi nhận vào hệ thống.', 'success');
+        return JSON.parse(line);
       } catch (error) {
-        console.error(error);
-        setFeedbackMessage(error.message || 'Không thể gửi ý kiến. Vui lòng thử lại.', 'error');
-      } finally {
-        if (submitButton) {
-          submitButton.disabled = false;
-          submitButton.textContent = 'Gửi ý kiến';
-        }
+        console.warn('Bỏ qua dòng ý kiến không hợp lệ:', line);
+        return null;
       }
-    });
-  };
+    })
+    .filter(Boolean)
+    .reverse();
 
-  updateTriggerDownloadAttribute();
-  if (typeof mobileQuery.addEventListener === 'function') {
-    mobileQuery.addEventListener('change', updateTriggerDownloadAttribute);
-  } else if (typeof mobileQuery.addListener === 'function') {
-    mobileQuery.addListener(updateTriggerDownloadAttribute);
+const readFeedbacks = async () => {
+  try {
+    const raw = await fs.readFile(FEEDBACK_FILE, 'utf8');
+    if (!raw.trim()) {
+      return [];
+    }
+
+    if (raw.includes(ENTRY_START)) {
+      return parseFeedbackBlocks(raw);
+    }
+
+    return parseJsonLines(raw);
+  } catch (error) {
+    console.error('Không thể đọc file ykien.txt:', error);
+    return [];
+  }
+};
+
+const formatFeedbackEntry = (feedback) =>
+  [
+    ENTRY_START,
+    `id: ${feedback.id}`,
+    `name: ${feedback.name}`,
+    `unit: ${feedback.unit}`,
+    `message: ${feedback.message}`,
+    `recordedAt: ${feedback.recordedAt}`,
+    ENTRY_END,
+    ''
+  ].join('\n');
+
+const appendFeedback = async (feedback) => {
+  await fs.appendFile(FEEDBACK_FILE, formatFeedbackEntry(feedback), 'utf8');
+};
+
+const normalizeWhitespace = (value) =>
+  value
+    .replace(/\s+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+const buildFeedbackRecord = ({ name, unit, message }) => ({
+  id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+  name: normalizeWhitespace(name),
+  unit: normalizeWhitespace(unit),
+  message: normalizeWhitespace(message),
+  recordedAt: new Intl.DateTimeFormat('vi-VN', {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  }).format(new Date())
+});
+
+app.use(express.json());
+app.use(express.static(__dirname));
+
+app.get('/api/feedbacks', async (req, res) => {
+  const feedbacks = await readFeedbacks();
+  res.json(feedbacks);
+});
+
+app.post('/api/feedbacks', async (req, res) => {
+  const { name = '', unit = '', message = '' } = req.body || {};
+  const trimmedName = String(name).trim();
+  const trimmedUnit = String(unit).trim();
+  const trimmedMessage = String(message).trim();
+
+  if (trimmedName.length < 3 || trimmedUnit.length < 3 || trimmedMessage.length < 10) {
+    return res.status(400).json({ message: 'Vui lòng cung cấp đầy đủ thông tin hợp lệ.' });
   }
 
-  initFeedbackFeature();
-})();
+  try {
+    const record = buildFeedbackRecord({ name: trimmedName, unit: trimmedUnit, message: trimmedMessage });
+    await appendFeedback(record);
+    res.status(201).json(record);
+  } catch (error) {
+    console.error('Không thể ghi ý kiến mới:', error);
+    res.status(500).json({ message: 'Hệ thống đang gặp sự cố. Vui lòng thử lại sau.' });
+  }
+});
+
+ensureFeedbackFile()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Máy chủ đang chạy tại http://localhost:${PORT}`);
+    });
+  })
+  .catch((error) => {
+    console.error('Không thể khởi tạo dữ liệu ban đầu:', error);
+    process.exit(1);
+  });
