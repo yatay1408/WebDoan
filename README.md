@@ -1,6 +1,6 @@
 # Đại hội Đoàn Trung tâm 386 (2025-2030)
 
-Trang web giới thiệu văn kiện Đại hội, kèm hệ thống thu nhận ý kiến chạy trên Node.js và lưu trữ nội bộ bằng tệp JSON.
+Trang web giới thiệu văn kiện Đại hội, kèm hệ thống thu nhận ý kiến chạy trên Node.js và lưu trữ nội bộ vào tệp văn bản `ykien.txt`.
 
 ## Cấu trúc dự án
 
@@ -8,7 +8,7 @@ Trang web giới thiệu văn kiện Đại hội, kèm hệ thống thu nhận 
 - `styles.css`: Toàn bộ định dạng giao diện với tông màu xanh Đoàn.
 - `script.js`: Điều khiển tương tác mở tài liệu PDF và giao tiếp với API góp ý.
 - `server.js`: Máy chủ Express phục vụ nội dung tĩnh và cung cấp API đọc/ghi ý kiến.
-- `data/feedbacks.json`: "Cơ sở dữ liệu" dạng JSON ghi nhận mọi ý kiến đã gửi.
+- `ykien.txt`: Tệp văn bản chứa toàn bộ ý kiến được ghi nhận (mỗi dòng là một bản ghi ở định dạng JSON).
 - `assets/`: Lưu logo và các tập tin PDF chính thức.
 - `package.json`: Khai báo phụ thuộc và các lệnh tiện ích.
 
@@ -23,7 +23,7 @@ Trang web giới thiệu văn kiện Đại hội, kèm hệ thống thu nhận 
    ```bash
    npm start
    ```
-   Máy chủ sẽ phục vụ trang tại [http://localhost:3000](http://localhost:3000) và tự tạo tệp `data/feedbacks.json` nếu chưa tồn tại.
+   Máy chủ sẽ phục vụ trang tại [http://localhost:3000](http://localhost:3000) và tự tạo tệp `ykien.txt` nếu chưa tồn tại.
 4. Trong quá trình phát triển, bạn có thể dùng chế độ tự tải lại:
    ```bash
    npm run dev
@@ -32,8 +32,8 @@ Trang web giới thiệu văn kiện Đại hội, kèm hệ thống thu nhận 
 ## Luồng lưu trữ ý kiến
 
 - Phía client gửi yêu cầu `POST /api/feedbacks` với trường `name`, `unit`, `message`.
-- Máy chủ xác thực dữ liệu, sinh mã định danh và đóng dấu thời gian, sau đó ghi ngược vào `data/feedbacks.json`.
-- Tất cả ý kiến được trả về qua `GET /api/feedbacks` để hiển thị trên bảng tổng hợp.
+- Máy chủ xác thực dữ liệu, sinh mã định danh và đóng dấu thời gian, sau đó nối thêm bản ghi mới vào cuối tệp `ykien.txt`.
+- Tất cả ý kiến được đọc từ `ykien.txt` (dạng JSON-lines) rồi trả về qua `GET /api/feedbacks` để hiển thị trên bảng tổng hợp.
 
 ## Triển khai
 

@@ -4,41 +4,58 @@ const fs = require('fs/promises');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DATA_DIRECTORY = path.join(__dirname, 'data');
-const FEEDBACK_FILE = path.join(DATA_DIRECTORY, 'feedbacks.json');
+const FEEDBACK_FILE = path.join(__dirname, 'ykien.txt');
 
-const ensureDataFile = async () => {
-  await fs.mkdir(DATA_DIRECTORY, { recursive: true });
+const ensureFeedbackFile = async () => {
   try {
     await fs.access(FEEDBACK_FILE);
   } catch (error) {
-    await fs.writeFile(FEEDBACK_FILE, '[]', 'utf8');
+    await fs.writeFile(FEEDBACK_FILE, '', 'utf8');
   }
 };
 
 const readFeedbacks = async () => {
   try {
     const raw = await fs.readFile(FEEDBACK_FILE, 'utf8');
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      return parsed;
-    }
-    return [];
+    const lines = raw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    const parsed = lines
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch (error) {
+          console.warn('Bỏ qua dòng ý kiến không hợp lệ:', line);
+          return null;
+        }
+      })
+      .filter(Boolean)
+      .reverse();
+
+    return parsed;
   } catch (error) {
-    console.error('Không thể đọc file feedbacks:', error);
+    console.error('Không thể đọc file ykien.txt:', error);
     return [];
   }
 };
 
-const writeFeedbacks = async (feedbacks) => {
-  await fs.writeFile(FEEDBACK_FILE, JSON.stringify(feedbacks, null, 2), 'utf8');
+const appendFeedback = async (feedback) => {
+  await fs.appendFile(FEEDBACK_FILE, `${JSON.stringify(feedback)}\n`, 'utf8');
 };
+
+const normalizeWhitespace = (value) =>
+  value
+    .replace(/\s+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 
 const buildFeedbackRecord = ({ name, unit, message }) => ({
   id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
-  name,
-  unit,
-  message,
+  name: normalizeWhitespace(name),
+  unit: normalizeWhitespace(unit),
+  message: normalizeWhitespace(message),
   recordedAt: new Intl.DateTimeFormat('vi-VN', {
     dateStyle: 'medium',
     timeStyle: 'short'
@@ -64,10 +81,8 @@ app.post('/api/feedbacks', async (req, res) => {
   }
 
   try {
-    const feedbacks = await readFeedbacks();
     const record = buildFeedbackRecord({ name: trimmedName, unit: trimmedUnit, message: trimmedMessage });
-    const updated = [record, ...feedbacks];
-    await writeFeedbacks(updated);
+    await appendFeedback(record);
     res.status(201).json(record);
   } catch (error) {
     console.error('Không thể ghi ý kiến mới:', error);
@@ -75,7 +90,7 @@ app.post('/api/feedbacks', async (req, res) => {
   }
 });
 
-ensureDataFile()
+ensureFeedbackFile()
   .then(() => {
     app.listen(PORT, () => {
       console.log(`Máy chủ đang chạy tại http://localhost:${PORT}`);
