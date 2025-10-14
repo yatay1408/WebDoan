@@ -197,7 +197,7 @@
       setFeedbackMessage('Hãy chia sẻ ý kiến của bạn để Ban Tổ chức kịp thời ghi nhận.');
     } catch (error) {
       console.error(error);
-      disableFeedbackForm('Không thể kết nối tới hệ thống góp ý. Vui lòng chạy máy chủ backend.');
+      disableFeedbackForm('Không thể truy cập file góp ý. Vui lòng chạy tiến trình đọc/ghi ykien.txt (node server.js).');
     }
   };
 
