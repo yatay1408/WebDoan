@@ -212,6 +212,11 @@
       const mobileQuery = window.matchMedia('(max-width: 767px)');
       const body = document.body;
 
+      const FEEDBACK_ENDPOINT = '/api/feedbacks';
+      const FEEDBACK_TEXT_SOURCE = 'ykien.txt';
+      const ENTRY_START = '===YK_START===';
+      const ENTRY_END = '===YK_END===';
+
       const isDesktopViewport = () => !mobileQuery.matches;
 
       const forceDownload = (pdfUrl) => {
@@ -305,9 +310,138 @@
       const feedbackContent = document.getElementById('feedbackContent');
       const feedbackMessage = document.querySelector('.feedback__message');
       const feedbackList = document.getElementById('feedbackList');
-      const FEEDBACK_ENDPOINT = '/api/feedbacks';
 
       let feedbackItems = [];
+      let backendAvailable = true;
+      let cachedFeedbackText = '';
+
+      const parseJsonLines = (raw) =>
+        raw
+          .split('\n')
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((line) => {
+            try {
+              return JSON.parse(line);
+            } catch (error) {
+              console.warn('Bỏ qua dòng ý kiến không hợp lệ:', line);
+              return null;
+            }
+          })
+          .filter(Boolean)
+          .reverse();
+
+      const parseFeedbackBlocks = (raw) => {
+        const segments = raw.split(ENTRY_START);
+        const records = [];
+
+        segments.forEach((segment) => {
+          const trimmed = segment.trim();
+          if (!trimmed) {
+            return;
+          }
+
+          const [content] = trimmed.split(ENTRY_END);
+          if (!content) {
+            return;
+          }
+
+          const lines = content
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean);
+
+          const record = {};
+          lines.forEach((line) => {
+            const [key, ...rest] = line.split(':');
+            if (!key || rest.length === 0) {
+              return;
+            }
+
+            const value = rest.join(':').trim();
+
+            switch (key) {
+              case 'name':
+                record.name = value;
+                break;
+              case 'unit':
+                record.unit = value;
+                break;
+              case 'message':
+                record.message = value;
+                break;
+              case 'recordedAt':
+                record.recordedAt = value;
+                break;
+              case 'id':
+                record.id = value;
+                break;
+              default:
+                break;
+            }
+          });
+
+          if (record.name && record.unit && record.message && record.recordedAt) {
+            if (!record.id) {
+              record.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+            }
+            records.push(record);
+          }
+        });
+
+        return records.reverse();
+      };
+
+      const parseFeedbackText = (raw) => {
+        if (!raw || !raw.trim()) {
+          return [];
+        }
+
+        if (raw.includes(ENTRY_START)) {
+          return parseFeedbackBlocks(raw);
+        }
+
+        return parseJsonLines(raw);
+      };
+
+      const normalizeWhitespace = (value) => value.replace(/\s+/g, ' ').trim();
+
+      const buildFeedbackRecord = ({ name, unit, message }) => ({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+        name: normalizeWhitespace(name),
+        unit: normalizeWhitespace(unit),
+        message: normalizeWhitespace(message),
+        recordedAt: new Intl.DateTimeFormat('vi-VN', {
+          dateStyle: 'medium',
+          timeStyle: 'short'
+        }).format(new Date())
+      });
+
+      const formatFeedbackBlock = (feedback) =>
+        [
+          ENTRY_START,
+          `id: ${feedback.id}`,
+          `name: ${feedback.name}`,
+          `unit: ${feedback.unit}`,
+          `message: ${feedback.message}`,
+          `recordedAt: ${feedback.recordedAt}`,
+          ENTRY_END,
+          ''
+        ].join('\n');
+
+      const ensureTrailingNewline = (text) => (text.endsWith('\n') ? text : `${text}\n`);
+
+      const downloadUpdatedFeedbackFile = (content) => {
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'ykien.txt';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      };
 
       const setFeedbackMessage = (text, tone = 'info') => {
         if (!feedbackMessage) return;
@@ -394,15 +528,35 @@
           } else {
             feedbackItems = [];
           }
+          backendAvailable = true;
           renderFeedbackList();
           setFeedbackMessage('Hãy chia sẻ ý kiến của bạn để Ban Tổ chức kịp thời ghi nhận.');
         } catch (error) {
           console.error(error);
-          disableFeedbackForm('Không thể truy cập file góp ý. Vui lòng chạy tiến trình đọc/ghi ykien.txt (node server.js).');
+          backendAvailable = false;
+
+          try {
+            const response = await fetch(`${FEEDBACK_TEXT_SOURCE}?t=${Date.now()}`, { cache: 'no-store' });
+            if (!response.ok) {
+              throw new Error(`Failed to load fallback feedback file: ${response.status}`);
+            }
+
+            const raw = await response.text();
+            cachedFeedbackText = raw || '';
+            feedbackItems = parseFeedbackText(raw);
+            renderFeedbackList();
+            setFeedbackMessage(
+              'Phiên bản trực tuyến đang chạy ở chế độ tải tệp. Khi gửi, bạn sẽ nhận được file ykien.txt đã cập nhật.',
+              'info'
+            );
+          } catch (fallbackError) {
+            console.error(fallbackError);
+            disableFeedbackForm('Không thể tải dữ liệu góp ý trong phiên bản này. Vui lòng liên hệ Ban Tổ chức để được hỗ trợ.');
+          }
         }
       };
 
-      const submitFeedback = async (payload) => {
+      const submitFeedbackApi = async (payload) => {
         const response = await fetch(FEEDBACK_ENDPOINT, {
           method: 'POST',
           headers: {
@@ -418,6 +572,17 @@
         }
 
         return response.json();
+      };
+
+      const submitFeedbackStatic = async (payload) => {
+        const record = buildFeedbackRecord(payload);
+        const nextText = cachedFeedbackText && cachedFeedbackText.trim()
+          ? ensureTrailingNewline(cachedFeedbackText) + ensureTrailingNewline(formatFeedbackBlock(record))
+          : ensureTrailingNewline(formatFeedbackBlock(record));
+
+        cachedFeedbackText = nextText;
+        downloadUpdatedFeedbackFile(nextText);
+        return record;
       };
 
       const initFeedbackFeature = () => {
@@ -459,11 +624,21 @@
           }
 
           try {
-            const savedFeedback = await submitFeedback({ name, unit, message });
+            const savedFeedback = backendAvailable
+              ? await submitFeedbackApi({ name, unit, message })
+              : await submitFeedbackStatic({ name, unit, message });
+
             feedbackItems = [savedFeedback, ...feedbackItems];
             renderFeedbackList();
             feedbackForm.reset();
-            setFeedbackMessage('Cảm ơn bạn! Ý kiến đã được ghi nhận vào hệ thống.', 'success');
+            if (backendAvailable) {
+              setFeedbackMessage('Cảm ơn bạn! Ý kiến đã được ghi nhận vào hệ thống.', 'success');
+            } else {
+              setFeedbackMessage(
+                'Đã tạo file ykien.txt chứa ý kiến của bạn. Vui lòng gửi file tới Ban Tổ chức để cập nhật vào hệ thống.',
+                'success'
+              );
+            }
           } catch (error) {
             console.error(error);
             setFeedbackMessage(error.message || 'Không thể gửi ý kiến. Vui lòng thử lại.', 'error');
